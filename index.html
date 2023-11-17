@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sound recorder
+    </title>
+    <script src="https://unpkg.com/htmx.org"></script>
+</head>
+<body>
+    <h1>Sound Recorder</h1>
+    <button hx-get="/toggleRecording" hx-swap="outerHTML">Toggle Recording</button>
+    <div id="response"></div>
+</body>
+</html>

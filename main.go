@@ -3,9 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/go-audio/audio"
@@ -13,33 +12,64 @@ import (
 	"github.com/gordonklaus/portaudio"
 )
 
+var (
+	recording       = false
+	stream          *portaudio.Stream
+	recordedSamples []int32
+)
+
 func main() {
 	portaudio.Initialize()
 	defer portaudio.Terminate()
 
-	stream, err := portaudio.OpenDefaultStream(&portaudio.StreamParameters{
+	http.HandleFunc("/toggleRecording", toggleRecordingHandler)
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func toggleRecordingHandler(w http.ResponseWriter, r *http.Request) {
+	if recording {
+		stopRecording()
+		fmt.Fprint(w, "Stopped recording.")
+	} else {
+		err := startRecording()
+		if err != nil {
+			log.Println("Error starting recording:", err)
+			fmt.Fprint(w, "Error starting recording.")
+			return
+		}
+		fmt.Fprint(w, "Started recording.")
+	}
+}
+
+func startRecording() error {
+	recordedSamples = nil // Reset recorded samples
+	var err error
+	stream, err = portaudio.OpenDefaultStream(&portaudio.StreamParameters{
 		Input: portaudio.StreamDeviceParameters{Channels: 1},
 	}, nil, 16000, 1024, processAudio)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-
 	err = stream.Start()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	defer stream.Stop()
+	recording = true
+	return nil
+}
 
-	fmt.Println("Listening... Press Ctrl+C to stop.")
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	<-c
+func stopRecording() {
+	if stream != nil {
+		stream.Stop()
+		stream.Close()
+	}
+	saveAudioDataToWAV(recordedSamples)
+	recording = false
 }
 
 func processAudio(in []int32) {
-	// Process audio data here
-	saveAudioDataToWAV(in)
+	// Append samples to recordedSamples slice
+	recordedSamples = append(recordedSamples, in...)
 }
 
 func saveAudioDataToWAV(data []int32) {
